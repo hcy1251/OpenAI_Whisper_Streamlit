@@ -23,14 +23,15 @@ client = OpenAI()
 # Audio tags for export
 audio_tags = {'comments': 'Converted using pydub!'}
 
+@st.cache_data(persist=True,show_spinner=True)
 # Function to split large audio files into smaller parts
-def split_audio(audio_data, max_size_mb=25):
+def split_audio(_audio_data, max_size_mb=25):
     max_size_bytes = max_size_mb * 1024 * 1024
-    duration_seconds = audio_data.duration_seconds  # Corrected this line
-    filesize_bytes = len(audio_data.raw_data)
+    duration_seconds = _audio_data.duration_seconds  # Corrected this line
+    filesize_bytes = len(_audio_data.raw_data)
 
     if filesize_bytes <= max_size_bytes:
-        return [audio_data]
+        return [_audio_data]
 
     parts = math.ceil(filesize_bytes / max_size_bytes)
     chunk_length = duration_seconds / parts
@@ -39,11 +40,12 @@ def split_audio(audio_data, max_size_mb=25):
     for i in range(parts):
         start = i * chunk_length * 1000
         end = min((i + 1) * chunk_length * 1000, duration_seconds * 1000)
-        split_audio = audio_data[start:end]
+        split_audio = _audio_data[start:end]
         split_files.append(split_audio)
 
     return split_files
 
+@st.cache_data(persist=True,show_spinner=True)
 # Function to convert audio file to mp3 format
 def to_mp3(audio_file):
     audio_format = audio_file.name.split('.')[-1].lower()
@@ -53,6 +55,7 @@ def to_mp3(audio_file):
     buffer.seek(0)
     return buffer
 
+@st.cache_data(persist=True,show_spinner=True)
 # Function to process audio using Whisper model
 def process_audio(audio_data, model_type, language_option):
     # Convert BytesIO back to AudioSegment
