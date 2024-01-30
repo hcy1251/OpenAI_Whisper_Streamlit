@@ -16,7 +16,7 @@ st.set_page_config(
 )
 
 # API Key input and setting environment variable
-api_key = st.text_input('OpenAI API Key')
+api_key = st.text_input('OpenAI API Key', type="password")
 os.environ["OPENAI_API_KEY"] = api_key
 client = OpenAI()
 
@@ -65,23 +65,30 @@ def process_audio(audio_data, model_type, language_option):
     for audio in split_files:
         with tempfile.NamedTemporaryFile(suffix=".mp3") as temp_file:
             audio.export(temp_file.name, format="mp3")
-            model = whisper.load_model(model_type)
-            result = model.transcribe(temp_file.name, language=language_option)
-            combined_transcript += result["text"] + " "
+            try:
+                model = whisper.load_model(model_type)
+                result = model.transcribe(temp_file.name, language=language_option,fp16=False)
+                combined_transcript += result["text"] + " "
+            except Exception as e:
+                st.error(f"Error occurred: {str(e)}")
+                return
 
     # Additional processing for Chinese language
     if language_option == "Chinese":
-        completion = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "請將以下文本進行斷句，以及對文本進行基本的處理（例如專有名詞的矯正、標點符號的添加等）："},
-                {"role": "user", "content": combined_transcript}
-            ]
-        )
-        combined_transcript = completion.choices[0].message.content
+        try:
+            completion = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "請將以下文本進行斷句，以及對文本進行基本的處理（例如專有名詞的矯正、標點符號的添加等）："},
+                    {"role": "user", "content": combined_transcript}
+                ]
+            )
+            combined_transcript = completion.choices[0].message.content
+        except Exception as e:
+            st.error(f"Error occurred: {str(e)}")
+            return
 
     return combined_transcript
-
 # Streamlit UI components
 st.title("🗣 Automatic Speech Recognition using Whisper by OpenAI ✨")
 st.info('✨ Supports all popular audio formats - WAV, MP3, MP4, OGG, WMA, AAC, FLAC, FLV 😉')
@@ -95,7 +102,12 @@ if uploaded_file is not None:
         st.audio(processed_audio)
 
         whisper_model_type = st.selectbox("Please choose your model type", ('Tiny', 'Base', 'Small', 'Medium', 'Large'))
-        language_option = st.selectbox("Choose a language", ["English", "Chinese"])
+        
+        # Disable Chinese language option when OpenAI API key is not provided
+        language_options = ["English"]
+        if api_key:
+            language_options.append("Chinese")
+        language_option = st.selectbox("Choose a language", language_options)
 
         if st.button("Generate Transcript"):
             transcript = process_audio(processed_audio, whisper_model_type.lower(), language_option)
